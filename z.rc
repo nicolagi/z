@@ -1,0 +1,121 @@
+fn _z_dirs{
+	for(line in `{cat $home/.z})
+		if(test -d `{echo $line | sed 's/\|.*//'})
+			echo $line
+}
+
+fn _z_add{
+	# $home and / aren't worth matching
+	~ $1 $home / || {
+		tempfile=$home/.z.$pid
+		_z_dirs | awk -v path=$1 -v now=`{date -n} '
+			BEGIN {
+				FS = OFS = "|"
+				rank[path] = 1
+				time[path] = now
+			}
+			$2 >= 1 {
+				if ($1 == path) {
+					rank[$1] = $2 + 1
+					time[$1] = now
+				} else {
+					rank[$1] = $2
+					time[$1] = $3
+				}
+				count += $2
+			}
+			END {
+				factor = 1
+				if (count > 9000)
+					factor = 0.99
+				for(p in rank)
+					print p, factor*rank[p], time[p]
+			}
+		' >$tempfile && mv $tempfile $home/.z
+		rm -f $tempfile
+	}
+}
+
+fn _z_go{
+	fnd=$"*
+	last=$$#*
+
+	if(test -d $last)
+		builtin cd $last
+	if not {
+
+	aux=`{
+		_z_dirs | awk -v t=`{date -n} -v q=$fnd '-F|' '
+			function frecent(rank, time) {
+				dx = t - time
+				return int(10000 * rank * (3.75/((0.0001 * dx + 1) + 0.25)))
+			}
+			function output(best_match, common) {
+				if (common)
+					best_match = common
+				print best_match
+			}
+			function common(matches) {
+				for (x in matches) {
+					if (matches[x] && (!short || length(x) < length(short))) {
+						short = x
+					}
+				}
+				if (short == "/")
+					return
+				for (x in matches)
+					if (matches[x] && index(x, short) != 1) {
+						return
+					}
+				return short
+			}
+			BEGIN {
+				gsub(" ", ".*", q)
+				hi_rank = ihi_rank = -999999999
+			}
+			{
+				rank = frecent($2, $3)
+				if ($1 ~ q) {
+					matches[$1] = rank
+					if (rank > hi_rank) {
+						best_match = $1
+						hi_rank = rank
+					}
+				} else if (tolower($1) ~ tolower(q)) {
+					imatches[$1] = rank
+					if (rank > ihi_rank) {
+						ibest_match = $1
+						ihi_rank = rank
+					}
+				}
+			}
+			END {
+				if (best_match) {
+					output(best_match, common(matches))
+					exit
+				} else if (ibest_match) {
+					output(ibest_match, common(imatches))
+					exit
+				}
+				exit(1)
+			}'
+		}
+		if(~ $status ''){
+			builtin cd $aux
+			awd
+			pwd
+		}
+	}
+}
+
+fn z{
+	_z_go $* >[2=1]
+}
+
+# TODO: _z_add should be called after every command, not only after cd.
+fn cd{
+	if(builtin cd $1){
+		awd || status=''
+		_z_add `{pwd} || status=''
+	}
+}
