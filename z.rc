@@ -1,6 +1,6 @@
 fn _z_dirs{
 	for(line in `{cat $home/.z})
-		if(test -d `{echo $line | sed 's/\|.*//'})
+		if(test -d `{echo $line | $PLAN9/bin/sed 's/\|.*//'})
 			echo $line
 }
 
@@ -8,7 +8,7 @@ fn _z_add{
 	# $home and / aren't worth matching
 	~ $1 $home / || {
 		tempfile=$home/.z.$pid
-		_z_dirs | awk -v path=$1 -v now=`{date -n} '
+		_z_dirs | $PLAN9/bin/awk -v path=$1 -v now=`{$PLAN9/bin/date -n} '
 			BEGIN {
 				FS = OFS = "|"
 				rank[path] = 1
@@ -45,7 +45,7 @@ fn _z_go{
 	if not {
 
 	aux=`{
-		_z_dirs | awk -v t=`{date -n} -v q=$fnd '-F|' '
+		_z_dirs | $PLAN9/bin/awk -v t=`{$PLAN9/bin/date -n} -v q=$fnd '-F|' '
 			function frecent(rank, time) {
 				dx = t - time
 				return int(10000 * rank * (3.75/((0.0001 * dx + 1) + 0.25)))
